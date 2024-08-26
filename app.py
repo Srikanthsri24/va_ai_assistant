@@ -4,6 +4,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from fastapi.middleware.cors import CORSMiddleware
 import torch
 import os
+import os
+import uvicorn
 
 # Initialize the FastAPI app
 app = FastAPI()
@@ -70,8 +72,6 @@ def ask_question(request: QuestionRequest):
 
 # Run the API
 if __name__ == "__main__":
-    import os
-    import uvicorn
-
-    port = int(os.environ.get("PORT", 8000))  # Use the PORT environment variable or default to 8000
+    port = int(os.environ.get("PORT", 8000))
+    logging.info(f"Starting server on port {port}...")
     uvicorn.run(app, host="0.0.0.0", port=port)
