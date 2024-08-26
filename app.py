@@ -11,8 +11,7 @@ app = FastAPI()
 # CORS configuration
 origins = [
     "http://localhost",
-    "http://localhost:8000",
-    "http://yourdomain.com",  # Add your specific domains here
+    "http://localhost:5173",
     "*",  # Allow all origins, be careful with this in production
 ]
 
