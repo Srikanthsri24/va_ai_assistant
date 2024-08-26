@@ -1,9 +1,9 @@
-# app.py
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from fastapi.middleware.cors import CORSMiddleware
 import torch
+import os
 
 # Initialize the FastAPI app
 app = FastAPI()
@@ -11,7 +11,8 @@ app = FastAPI()
 # CORS configuration
 origins = [
     "http://localhost",
-    "http://localhost:5173",
+    "http://localhost:8000",
+    "http://yourdomain.com",  # Add your specific domains here
     "*",  # Allow all origins, be careful with this in production
 ]
 
@@ -23,10 +24,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load the model and tokenizer
-model_name = "/model/h2ogpt-oasst1-falcon-40b"  # Load from local folder
-tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto", trust_remote_code=True)
+# Set the model path
+model_path = "./model/h2ogpt-oasst1-falcon-40b"
+
+# Download and load the model and tokenizer if not already present
+if not os.path.exists(model_path):
+    os.makedirs(model_path, exist_ok=True)
+    tokenizer = AutoTokenizer.from_pretrained("h2oai/h2ogpt-oasst1-falcon-40b", cache_dir=model_path, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained("h2oai/h2ogpt-oasst1-falcon-40b", cache_dir=model_path, torch_dtype=torch.float16, device_map="auto", trust_remote_code=True)
+else:
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.float16, device_map="auto", trust_remote_code=True)
 
 # Define the request body model
 class QuestionRequest(BaseModel):
