@@ -1,35 +1,12 @@
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
+from flask import Flask, request, jsonify
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from fastapi.middleware.cors import CORSMiddleware
 import torch
 import os
-import os
-import uvicorn
 
-# Initialize the FastAPI app
-app = FastAPI()
+app = Flask(__name__)
 
-# CORS configuration
-origins = [
-    "http://localhost",
-    "http://localhost:8000",
-    "http://yourdomain.com",  # Add your specific domains here
-    "*",  # Allow all origins, be careful with this in production
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Set the model path
+# Load the model and tokenizer
 model_path = "./model/h2ogpt-oasst1-falcon-40b"
-
-# Download and load the model and tokenizer if not already present
 if not os.path.exists(model_path):
     os.makedirs(model_path, exist_ok=True)
     tokenizer = AutoTokenizer.from_pretrained("h2oai/h2ogpt-oasst1-falcon-40b", cache_dir=model_path, trust_remote_code=True)
@@ -38,25 +15,14 @@ else:
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.float16, device_map="auto", trust_remote_code=True)
 
-# Define the request body model
-class QuestionRequest(BaseModel):
-    question: str
-
-# Error handling middleware
-@app.middleware("http")
-async def add_custom_header(request: Request, call_next):
+@app.route('/ask', methods=['POST'])
+def ask_question():
     try:
-        response = await call_next(request)
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Define the API endpoint
-@app.post("/ask")
-def ask_question(request: QuestionRequest):
-    try:
+        data = request.get_json()
+        question = data['question']
+        
         # Tokenize the input question
-        inputs = tokenizer(request.question, return_tensors="pt").to("cuda")
+        inputs = tokenizer(question, return_tensors="pt").to("cuda")
         
         # Generate the response
         outputs = model.generate(inputs["input_ids"], max_new_tokens=100)
@@ -64,14 +30,12 @@ def ask_question(request: QuestionRequest):
         # Decode the generated tokens
         answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
         
-        return {"question": request.question, "answer": answer}
+        return jsonify({"question": question, "answer": answer})
     except torch.cuda.OutOfMemoryError:
-        raise HTTPException(status_code=500, detail="CUDA Out of Memory. Try reducing the input size or batch size.")
+        return jsonify({"error": "CUDA Out of Memory. Try reducing the input size or batch size."}), 500
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-# Run the API
-if __name__ == "__main__":
+if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8000))
-    logging.info(f"Starting server on port {port}...")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    app.run(host='0.0.0.0', port=port)
